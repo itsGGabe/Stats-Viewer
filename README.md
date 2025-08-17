@@ -1,1 +1,1145 @@
-# Stats-Viewer
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Baseball Stats Viewer — Live + CSV</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<style>
+  /* ====== THEME ====== */
+  :root {
+    --bg: #0a0b10;
+    --layer: rgba(18, 20, 28, .72);
+    --layer-strong: rgba(18, 20, 28, .90);
+    --border: rgba(255,255,255,.08);
+    --text: #eef1f7;
+    --muted: #a0a7b8;
+    --brand: #7aa2ff;
+    --brand-2: #63e6be;
+    --focus: #9bb2ff;
+    --row: #141827;
+    --row-alt: #111423;
+    --hover: rgba(255,255,255,.06);
+    --shadow: 0 18px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.02);
+    --radius-xl: 20px; --radius-lg: 14px; --radius-sm: 10px;
+
+    --bar-good: rgba(122,162,255,.28);
+    --bar-bad: rgba(99,230,190,.28); /* inverted bars use same tint */
+    --sticky-bg: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fd; --layer: rgba(255,255,255,.88); --layer-strong:#fff;
+      --border: rgba(0,0,0,.08); --text:#0f1222; --muted:#626b7e;
+      --row:#ffffff; --row-alt:#f6f8fd; --hover: rgba(5,11,36,.06);
+      --shadow: 0 18px 40px rgba(17,24,39,.08), inset 0 1px 0 rgba(255,255,255,.6);
+      --bar-good: rgba(79,122,252,.2); --bar-bad: rgba(49,211,161,.2);
+    }
+  }
+
+  /* ====== BASE ====== */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(1200px 800px at 90% -10%, #3a4ac633 0%, #0000 60%),
+      radial-gradient(900px 600px at -10% 110%, #19b27b2a 0%, #0000 60%),
+      var(--bg);
+  }
+  a { color: inherit; }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 18px 80px; }
+
+  /* ====== HEADER ====== */
+  .hero {
+    position: relative;
+    border-radius: var(--radius-xl);
+    padding: 18px 16px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    display:grid; grid-template-columns: 1fr auto; gap:16px; align-items:end;
+    overflow: clip;
+  }
+  .hero:before {
+    content:""; position:absolute; inset:-2px;
+    border-radius: inherit;
+    background: conic-gradient(from 230deg, #7aa2ff88, #63e6be66, #7aa2ff88);
+    filter: blur(30px); opacity:.25; pointer-events:none;
+  }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .logo {
+    width:36px; height:36px; border-radius:10px;
+    background: linear-gradient(135deg, #7aa2ff, #63e6be);
+    box-shadow: 0 10px 24px rgba(122,162,255,.35);
+  }
+  h1 { margin:0; font-size: 22px; letter-spacing:.2px; }
+  .muted { color: var(--muted); font-size: 13px; margin-top:6px; }
+
+  .actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .chip { font-size:12px; color:var(--muted); border:1px dashed var(--border); padding:6px 10px; border-radius:999px;}
+
+  /* ====== CONTROLS ====== */
+  .btn {
+    cursor:pointer; border:1px solid var(--border); color:var(--text);
+    padding:10px 14px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    box-shadow: var(--shadow); transition: transform .08s ease, background .2s ease, border-color .2s ease, opacity .2s;
+    display:inline-flex; align-items:center; gap:10px;
+  }
+  .btn svg { width:16px; height:16px; opacity:.9; }
+  .btn:hover { background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.02)); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { border-color: transparent; background:linear-gradient(180deg, var(--brand), #4f7afc); color:#fff; }
+  .btn.green { border-color: transparent; background:linear-gradient(180deg, var(--brand-2), #31d3a1); color:#0a0f12; }
+  .btn.ghost { background:transparent; }
+  .btn.small { padding:7px 10px; border-radius:10px; font-size:13px; }
+  .select.inline { height: 38px; }
+
+  /* ====== PANELS / CARDS ====== */
+  .card {
+    margin-top:14px; background: var(--layer); border: 1px solid var(--border);
+    border-radius: var(--radius-xl); box-shadow: var(--shadow); padding: 14px; backdrop-filter: blur(8px);
+  }
+
+  /* ====== TABS ====== */
+  .tabs { display:flex; gap:10px; align-items:center; }
+  .tab {
+    position:relative; border:1px solid var(--border); border-radius:999px; padding:8px 14px;
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); cursor:pointer;
+    transition: all .15s; font-weight:600; letter-spacing:.2px;
+  }
+  .tab:hover { transform: translateY(-1px); }
+  .tab.active {
+    background:linear-gradient(180deg, var(--brand), #4f7afc); color:#fff; border-color:transparent;
+  }
+  .tab.active:after {
+    content:""; position:absolute; left:50%; transform:translateX(-50%); bottom:-7px;
+    width: 60%; height:3px; border-radius:2px; background:linear-gradient(90deg, #63e6be, #7aa2ff);
+  }
+
+  /* ====== TOOLBAR ====== */
+  .toolbar { display:grid; gap:12px; position: sticky; top:8px; z-index: 2; }
+  @media (min-width: 980px) { .toolbar { grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto; align-items:end; } }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .input, .select {
+    width:100%; border:1px solid var(--border); border-radius:12px; padding:10px 12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); color:var(--text);
+    outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  .input:focus, .select:focus { border-color:var(--focus); box-shadow:0 0 0 3px color-mix(in oklab, var(--focus) 25%, transparent); }
+
+  /* ====== FILE LIST ====== */
+  .files { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .file { display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid var(--border); border-radius:14px; padding:10px 12px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); }
+  .pill { font-size:11px; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
+
+  /* ====== LEADERS ====== */
+  .leaders { display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .leader { border:1px solid var(--border); border-radius:14px; padding:12px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); }
+  .leader h4 { margin:0 0 8px 0; font-size:13px; color:var(--muted); letter-spacing:.2px; }
+  .leader .row { display:flex; justify-content:space-between; gap:8px; padding:4px 0; }
+
+  /* ====== TABLE ====== */
+  .tableWrap { overflow:auto; border-radius:var(--radius-xl); }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  thead th {
+    position:sticky; top:0; z-index:2; text-align:left; font-weight:700; letter-spacing:.15px;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); backdrop-filter: blur(6px);
+    border-bottom:1px solid var(--border);
+  }
+  th, td { padding:10px 12px; white-space:nowrap; }
+  tbody tr { background:var(--row); transition: background .12s ease; }
+  tbody tr:nth-child(even) { background:var(--row-alt); }
+  tbody tr:hover td { background:var(--hover); }
+  th.sortable { cursor:pointer; user-select:none; }
+
+  /* Sticky last-name column */
+  th.sticky, td.sticky {
+    position: sticky; left: 0; z-index: 3;
+    background: var(--sticky-bg);
+    box-shadow: 2px 0 0 var(--border);
+  }
+
+  .statusbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px; }
+  .status { color:var(--muted); font-size:12px; }
+  .last { color:var(--muted); font-size:12px; }
+
+  /* ====== OVERLAYS ====== */
+  .panel {
+    position:fixed; right:22px; bottom:22px; width:460px; max-height:72vh; overflow:auto;
+    background:var(--layer-strong); border:1px solid var(--border); border-radius:var(--radius-xl);
+    padding:14px; box-shadow: var(--shadow); backdrop-filter: blur(10px);
+  }
+  .panel h3 { margin:0 0 8px 0; font-size:16px; }
+  .map-row, .col-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center; margin-bottom:10px; }
+  .raw { font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:1px dashed var(--border); border-radius:var(--radius-sm); padding:8px 10px; background:rgba(0,0,0,.04); }
+  .hidden { display:none !important; }
+
+  /* Drag & Drop overlay */
+  .drop { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.35); backdrop-filter: blur(4px); z-index: 9999; }
+  .drop.show { display:flex; }
+  .drop .box { border:2px dashed #9bb2ff; color:#fff; padding:28px 36px; border-radius:16px; background:rgba(20,24,40,.7); font-size:16px; text-align:center; }
+
+  /* Paste panel */
+  .pasteArea { width:100%; min-height:180px; border:1px dashed var(--border); border-radius:12px; padding:10px; background:rgba(0,0,0,.05); color:var(--text); }
+
+  /* ====== SHIMMER ====== */
+  .shimmer td { position:relative; overflow:hidden; }
+  .shimmer td:after {
+    content:""; position:absolute; inset:0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent);
+    animation: shimmer 1.2s infinite; transform: translateX(-100%);
+  }
+  @keyframes shimmer { 100% { transform: translateX(100%);} }
+</style>
+</head>
+<body>
+  <div class="wrap" id="page">
+
+    <div class="hero">
+      <div>
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <h1>Baseball Stats Viewer</h1>
+            <div class="muted">Upload CSVs or pull live stats via your Worker proxy. Filter, sort, export — fast and offline‑friendly.</div>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <input id="fileInput" type="file" accept=".csv" multiple style="display:none">
+        <button id="btnUpload" class="btn">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0-12 4 4m-4-4-4 4M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Upload CSVs
+        </button>
+
+        <button id="btnLive" class="btn primary">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Load Live Stats
+        </button>
+
+        <button id="btnRefresh" class="btn green">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.343-5.657M20 4v5h-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Refresh
+        </button>
+
+        <select id="refreshSel" class="select inline">
+          <option value="0">Auto‑refresh: Off</option>
+          <option value="1">Every 1 min</option>
+          <option value="5">Every 5 min</option>
+          <option value="15">Every 15 min</option>
+        </select>
+
+        <button id="btnExport" class="btn">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 21h16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Export (visible)
+        </button>
+
+        <button id="btnColumns" class="btn ghost small">Columns</button>
+        <button id="btnMap" class="btn ghost small">Header Mapper</button>
+        <button id="btnPaste" class="btn ghost small">Paste CSV</button>
+        <button id="btnSave" class="btn ghost small">Save</button>
+        <button id="btnLoad" class="btn ghost small">Load</button>
+        <button id="btnRestore" class="btn ghost small hidden">Restore</button>
+      </div>
+    </div>
+
+    <div id="filesCard" class="card hidden">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div style="font-weight:700;">Loaded files</div>
+        <div class="chip" id="lastChip">Last updated: —</div>
+      </div>
+      <div id="filesGrid" class="files"></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="batting">Batting</button>
+        <button class="tab" data-tab="pitching">Pitching</button>
+        <button class="tab" data-tab="fielding">Fielding</button>
+      </div>
+
+      <div class="toolbar" style="margin-top:12px;">
+        <div class="field"><label>Search</label><input id="searchInput" class="input" placeholder="Player or team…"></div>
+        <div class="field"><label>Team</label><select id="teamSelect" class="select"><option value="">All teams</option></select></div>
+        <div class="field" id="posWrap"><label>Position</label><select id="posSelect" class="select"><option value="">All positions</option></select></div>
+        <div class="field" id="minABWrap"><label>Min AB</label><input id="minAB" type="number" class="input" placeholder="e.g. 20"></div>
+        <div class="field hidden" id="minIPWrap"><label>Min IP</label><input id="minIP" type="number" class="input" placeholder="e.g. 5"></div>
+        <div class="field" style="align-self:end;"><button id="btnReset" class="btn ghost">Reset</button></div>
+      </div>
+    </div>
+
+    <div id="leadersCard" class="card hidden">
+      <div class="leaders" id="leaders"></div>
+    </div>
+
+    <div class="card">
+      <div class="tableWrap">
+        <table id="dataTable">
+          <thead><tr id="theadRow"></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="statusbar">
+        <div id="status" class="status">No data yet.</div>
+        <div id="lastSmall" class="last">—</div>
+      </div>
+    </div>
+
+    <footer class="muted" style="margin-top:8px;">Tip: use “Save” after loading — next time click “Restore” to instantly continue where you left off.</footer>
+  </div>
+
+  <!-- Header Mapper -->
+  <div id="mapper" class="panel hidden">
+    <h3>Header Mapper</h3>
+    <div id="mapRows"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+      <button id="btnCloseMap" class="btn ghost small">Close</button>
+      <button id="btnApplyMap" class="btn small">Apply</button>
+    </div>
+  </div>
+
+  <!-- Column Chooser -->
+  <div id="columnsPanel" class="panel hidden">
+    <h3>Columns (toggle per tab)</h3>
+    <div id="colRows"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+      <button id="btnCloseCols" class="btn ghost small">Close</button>
+      <button id="btnApplyCols" class="btn small">Apply</button>
+    </div>
+  </div>
+
+  <!-- Paste CSV Panel -->
+  <div id="pastePanel" class="panel hidden">
+    <h3>Paste CSV</h3>
+    <div class="field"><label>Filename (just for display)</label><input id="pasteName" class="input" placeholder="e.g., Batting.csv"></div>
+    <div class="field"><label>Stat type</label>
+      <select id="pasteType" class="select">
+        <option value="auto">Auto-detect</option>
+        <option value="batting">Batting</option>
+        <option value="pitching">Pitching</option>
+        <option value="fielding">Fielding</option>
+      </select>
+    </div>
+    <div class="field"><label>CSV text</label><textarea id="pasteArea" class="pasteArea" placeholder="Paste CSV here…"></textarea></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+      <button id="btnClosePaste" class="btn ghost small">Close</button>
+      <button id="btnAddPaste" class="btn small">Add</button>
+    </div>
+  </div>
+
+  <!-- Drag & Drop Overlay -->
+  <div id="drop" class="drop"><div class="box">Drop your CSV files here</div></div>
+
+<script>
+(function(){
+  /* =============== STATE =============== */
+  const state = {
+    files: [],                // {id, name, type, overrideType, headers, rows, rawHeaders}
+    tab: 'batting',
+    q: '', team: '', pos: '', minAB: '', minIP: '',
+    sortKey: '', sortDir: 'desc',
+    manualMap: new Map(),     // rawHeader -> canonical target
+    lastLoaded: null,
+    hiddenColumns: { batting: new Set(), pitching: new Set(), fielding: new Set() },
+    loading: false,
+    autoTimer: null
+  };
+
+  /* =============== HELPERS =============== */
+  const $ = s => document.querySelector(s);
+  const genId = ()=> 'f_' + Math.random().toString(36).slice(2);
+  const stripNBSP = s => (s||'').replace(/\u00a0/g,' ').replace(/\u200b/g,'');
+  const baseClean = h => stripNBSP(h).replace(/\s+/g,' ').trim();
+  const nowPretty = () => new Date().toLocaleString();
+
+  // Canonical columns
+  const CAN = {
+    batting:['First','Last','Team','G','PA','AB','R','H','2B','3B','HR','RBI','BB','SO','HBP','SB','CS','AVG','OBP','SLG','OPS','TB','SF','SH','GDP'],
+    pitching:['First','Last','Team','G','GS','IP','H','R','ER','BB','SO','HR','W','L','SV','ERA','WHIP','HBP','BF'],
+    fielding:['First','Last','Team','Pos','G','GS','Inn','PO','A','E','DP','TC','Fld%','PB']
+  };
+
+  // Column groups for leaders and bars
+  const METRICS = {
+    batting: [
+      { key: 'AVG', label:'AVG', desc:false, bar:true },
+      { key: 'OPS', label:'OPS', desc:false, bar:true },
+      { key: 'HR',  label:'HR',  desc:true,  bar:false },
+      { key: 'RBI', label:'RBI', desc:true,  bar:false },
+    ],
+    pitching: [
+      { key: 'ERA',  label:'ERA',  desc:false, bar:true, invert:true }, // lower better
+      { key: 'WHIP', label:'WHIP', desc:false, bar:true, invert:true }, // lower better
+      { key: 'SO',   label:'SO',   desc:true,  bar:false },
+      { key: 'SV',   label:'SV',   desc:true,  bar:false },
+    ],
+    fielding: [
+      { key: 'Fld%', label:'Fld%', desc:false, bar:false },
+      { key: 'PO',   label:'PO',   desc:true,  bar:false },
+      { key: 'A',    label:'A',    desc:true,  bar:false },
+      { key: 'E',    label:'E',    desc:false, bar:false }, // fewer errors is better
+    ]
+  };
+
+  const ALIAS = new Map(); const A = (from,to)=>ALIAS.set(normKey(from),to);
+  function normKey(s){
+    return stripNBSP(String(s||''))
+      .toLowerCase().replace(/\(.*?\)/g,'')
+      .replace(/\bpercentage\b/g,'').replace(/\brate\b/g,'')
+      .replace(/\bon base\b/g,'onbase').replace(/\bplus\b/g,'+')
+      .replace(/[^a-z0-9+%]/g,'').replace(/\+/, 'plus');
+  }
+  // Shared
+  A('player','Player'); A('playername','Player'); A('name','Player'); A('team','Team'); A('teamname','Team');
+  // Batting
+  ['g','games','gamesplayed'].forEach(x=>A(x,'G'));
+  A('pa','PA'); A('plateappearances','PA');
+  ['ab','atbats','atbat','at b'].forEach(x=>A(x,'AB'));
+  A('r','R'); A('runs','R'); A('h','H'); A('hits','H');
+  A('2b','2B'); A('doubles','2B'); A('3b','3B'); A('triples','3B');
+  A('hr','HR'); A('homeruns','HR');
+  A('rbi','RBI'); A('runsbattedin','RBI');
+  A('bb','BB'); A('walks','BB'); A('basesonballs','BB'); A('baseonballs','BB');
+  A('so','SO'); A('strikeouts','SO'); A('k','SO');
+  A('hbp','HBP'); A('hitbypitch','HBP');
+  A('sb','SB'); A('stolenbases','SB'); A('cs','CS'); A('caughtstealing','CS');
+  A('avg','AVG'); A('battingaverage','AVG');
+  A('obp','OBP'); A('onbase','OBP'); A('onbasepercentage','OBP');
+  A('slg','SLG'); A('slugging','SLG'); A('sluggingpercentage','SLG');
+  A('ops','OPS'); A('onbaseplusslugging','OPS'); A('onbase+slugging','OPS');
+  A('tb','TB'); A('totalbases','TB'); A('sf','SF'); A('sacrificefly','SF'); A('sh','SH'); A('sacrificehit','SH');
+  A('gdp','GDP'); A('gidp','GDP'); A('groundintodoubleplay','GDP');
+  // Pitching
+  A('gs','GS'); A('gamesstarted','GS'); A('ip','IP'); A('inningspitched','IP');
+  ['h_pitching','hitsallowed','ha','h'].forEach(x=>A(x,'H'));
+  ['r_pitching','runsallowed','ra','r'].forEach(x=>A(x,'R'));
+  A('er','ER'); A('earnedruns','ER');
+  ['bb_pitching','walksallowed','bb'].forEach(x=>A(x,'BB'));
+  ['so_pitching','strikeouts_p','so','k_pitching'].forEach(x=>A(x,'SO'));
+  ['hr_pitching','homerunsallowed','hr'].forEach(x=>A(x,'HR'));
+  A('w','W'); A('wins','W'); A('l','L'); A('losses','L'); A('sv','SV'); A('saves','SV');
+  A('era','ERA'); A('whip','WHIP'); A('bf','BF'); A('battersfaced','BF');
+  A('hbp_pitching','HBP'); A('hitbypitch_p','HBP');
+  // Fielding
+  A('pos','Pos'); A('position','Pos'); A('inn','Inn'); A('innings','Inn'); A('inningsplayed','Inn');
+  A('po','PO'); A('putouts','PO'); A('a','A'); A('assists','A'); A('e','E'); A('errors','E');
+  A('dp','DP'); A('doubleplays','DP'); A('tc','TC'); A('totalchances','TC');
+  A('fld%','Fld%'); A('fielding%','Fld%'); A('fpct','Fld%'); A('fieldingpercentage','Fld%');
+  A('pb','PB'); A('passedballs','PB');
+
+  // Split player name into components
+  function splitPlayerName(raw) {
+    const s = String(raw || '');
+    let last = (s.match(/<span[^>]*class=["']lastname["'][^>]*>([^<]*)<\/span>/i) || [,''])[1].trim();
+    let first = (s.match(/<span[^>]*class=["']firstname["'][^>]*>([^<]*)<\/span>/i) || [,''])[1].trim();
+    if (!last && !first) {
+      const noTags = s.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').trim();
+      if (noTags) {
+        if (/,/.test(noTags)) {
+          const parts = noTags.split(',');
+          last = parts[0].trim();
+          first = parts[1] ? parts[1].trim() : '';
+        } else {
+          const parts = noTags.split(/\s+/);
+          if (parts.length > 1) {
+            first = parts[0];
+            last = parts.slice(1).join(' ');
+          } else {
+            last = parts[0];
+          }
+        }
+      }
+    }
+    const full = [first, last].filter(Boolean).join(' ').trim();
+    return { first, last, full };
+  }
+
+  // Clean API HTML name into "First Last"
+  function cleanPlayerName(raw) {
+    return splitPlayerName(raw).full;
+  }
+
+  function canonicalizeHeader(raw){
+    const cleaned = baseClean(raw);
+    const manual = state.manualMap.get(cleaned);
+    if (manual) return manual;
+    const k = normKey(cleaned);
+    return ALIAS.get(k) || cleaned;
+  }
+
+  // CSV parsing
+  function parseCSV(text){
+    const out=[]; let row=[]; let f=''; let i=0; let q=false;
+    while(i<text.length){
+      const c=text[i];
+      if(q){
+        if(c==='\"'){ if(text[i+1]==='\"'){ f+='\"'; i+=2; continue; } q=false; i++; continue; }
+        f+=c; i++; continue;
+      } else {
+        if(c==='\"'){ q=true; i++; continue; }
+        if(c===','){ row.push(f); f=''; i++; continue; }
+        if(c==='\n'){ row.push(f); out.push(row); row=[]; f=''; i++; continue; }
+        if(c==='\r'){ if(text[i+1]==='\n'){ i++; } row.push(f); out.push(row); row=[]; f=''; i++; continue; }
+        f+=c; i++; continue;
+      }
+    }
+    row.push(f); out.push(row);
+    while(out.length && out[out.length-1].every(x=>x==='')) out.pop();
+    return out;
+  }
+
+  const toNum = v => { const n = Number(String(v).replace(/,/g,'').trim()); return isNaN(n)?0:n; };
+  const toNumber = (v, h) => {
+    if (v===null || v===undefined) return NaN;
+    if (typeof v==='number') return v;
+    let s = String(v).trim();
+    const hasPercent = s.includes('%');
+    s = s.replace(/%/g,'').trim();
+    if (s.includes(',') && !s.includes('.')) {
+      s = s.replace(/,/g,'.');
+    } else {
+      s = s.replace(/,/g,'');
+    }
+    if (!s) return NaN;
+    let n = Number(s);
+    if (isNaN(n)) return NaN;
+    if (hasPercent) n = n/100;
+    if (h && ['AVG','OBP','SLG','OPS','Fld%'].includes(h) && n >= 2) n = n/1000;
+    return n;
+  };
+
+  function addNameParts(headers, data){
+    if (!headers.includes('Player')) return headers;
+    data.forEach(r => {
+      const parts = splitPlayerName(r.Player);
+      r.First = parts.first;
+      r.Last = parts.last;
+      r.Player = parts.full;
+    });
+    const idx = headers.indexOf('Player');
+    if (idx === -1) return headers;
+    headers.splice(idx, 1, 'First', 'Last');
+    return headers;
+  }
+
+  function addDerivedPA(headers, data){
+    if (headers.includes('PA')) return headers;
+    const needed = ['AB','BB','HBP','SF','SH'];
+    if (!needed.some(h => headers.includes(h))) return headers;
+    data.forEach(r => r.PA = toNum(r.AB) + toNum(r.BB) + toNum(r.HBP) + toNum(r.SF) + toNum(r.SH));
+    return headers.concat('PA');
+  }
+
+  function parseCsvBlob(name, blob, done, fail){
+    const fr = new FileReader();
+    fr.onerror = () => fail && fail('Read error');
+    fr.onload = () => {
+      const text = fr.result || '';
+      const rows = parseCSV(text);
+      if (!rows.length){ done({headers:[], data:[], rawHeaders:[]}); return; }
+      const rawHeaders = rows[0].map(baseClean);
+      const mappedHeaders = rawHeaders.map(canonicalizeHeader);
+      const data = rows.slice(1).filter(r => r.some(x=>String(x).trim()!=='')).map(r=>{
+        const o={}; mappedHeaders.forEach((h,idx)=>{ o[h] = r[idx]!==undefined ? r[idx] : ''; }); return o;
+      });
+      const withNames = addNameParts(mappedHeaders, data);
+      const finalHeaders = addDerivedPA(withNames, data);
+      const type = guessType(finalHeaders);
+      const fileObj = { id:genId(), name, type, overrideType:type, headers:finalHeaders, rows:data, rawHeaders };
+      done(fileObj);
+    };
+    fr.readAsText(blob);
+  }
+
+  function guessType(headers){
+    const hs = headers.map(h=>h.toLowerCase());
+    const any = arr => arr.some(a=>hs.includes(a.toLowerCase()));
+    if (any(['ab','h','avg','obp','slg','ops','pa'])) return 'batting';
+    if (any(['ip','era','whip','so','bb','sv'])) return 'pitching';
+    if (any(['po','a','e','tc','fld%','dp'])) return 'fielding';
+    return 'unknown';
+  }
+
+  function mergedByType(){
+    const out = {batting:[], pitching:[], fielding:[]};
+    for(const f of state.files){
+      const t=f.overrideType;
+      if (t==='batting'||t==='pitching'||t==='fielding') out[t]=out[t].concat(f.rows);
+    }
+    return out;
+  }
+
+  function setLast(ts){
+    state.lastLoaded = ts || new Date();
+    const txt = 'Last updated: ' + nowPretty();
+    $('#lastChip').textContent = txt;
+    $('#lastSmall').textContent = txt;
+  }
+
+  // Percentile scales per metric on filtered rows
+  function buildScales(rows){
+    const keys = ['AVG','OPS','ERA','WHIP'];
+    const out = {};
+    keys.forEach(k=>{
+      const vals = rows.map(r => toNumber(r[k], k)).filter(v => !isNaN(v));
+      if (!vals.length) return;
+      const min = Math.min(...vals), max = Math.max(...vals);
+      out[k] = { min, max };
+    });
+    return out;
+  }
+
+  function formatValue(h, v){
+    if (v===undefined || v===null || v==='') return '';
+    const num = toNumber(v, h);
+    const three = n => (isNaN(n) ? String(v) : n.toFixed(3));
+    const two = n => (isNaN(n) ? String(v) : n.toFixed(2));
+    if (h==='ERA' || h==='WHIP') return two(num);
+    if (['AVG','OBP','SLG','OPS','Fld%'].includes(h)) return three(num);
+    return String(v);
+  }
+
+  // Leaders render block
+  function renderLeaders(filtered){
+    const card = $('#leadersCard');
+    const cont = $('#leaders');
+    const metrics = METRICS[state.tab] || [];
+    if (!filtered.length || !metrics.length){ card.classList.add('hidden'); cont.innerHTML=''; return; }
+    card.classList.remove('hidden');
+
+    // Build leaders per metric
+    const blocks = metrics.map(m=>{
+      const key = m.key;
+      const arr = filtered
+        .map(r => ({ name: cleanPlayerName(r.Player), team: r.Team, val: toNumber(r[key], key) }))
+        .filter(x => !isNaN(x.val) && x.name)
+        .sort((a,b) => m.desc ? (b.val - a.val) : (a.val - b.val)); // sort direction
+      if (!arr.length) return '';
+      const top = m.invert ? arr.slice(0,3) // for ERA/WHIP we sorted ascending; top few are best
+                  : (m.desc ? arr.slice(0,3) : arr.slice(-3).reverse());
+      const rows = top.map(x => `
+        <div class="row">
+          <div style="min-width:0; overflow:hidden; text-overflow:ellipsis;">${x.name} <span class="muted">(${x.team||''})</span></div>
+          <div><strong>${formatValue(key, x.val)}</strong></div>
+        </div>`).join('');
+      return `<div class="leader"><h4>${m.label} leaders</h4>${rows}</div>`;
+    }).join('');
+    cont.innerHTML = blocks;
+  }
+
+  // Visible headers with hidden set applied
+  function visibleHeaders(allHeaders){
+    const hidden = state.hiddenColumns[state.tab] || new Set();
+    return allHeaders.filter(h => !hidden.has(h));
+  }
+
+  // Persist hidden columns in localStorage
+  function saveHidden(){
+    const obj = {};
+    Object.keys(state.hiddenColumns).forEach(tab=>{
+      obj[tab] = Array.from(state.hiddenColumns[tab]);
+    });
+    try { localStorage.setItem('bsv_hidden_v1', JSON.stringify(obj)); } catch(e){}
+  }
+  function loadHidden(){
+    try {
+      const txt = localStorage.getItem('bsv_hidden_v1'); if (!txt) return;
+      const obj = JSON.parse(txt);
+      ['batting','pitching','fielding'].forEach(tab=>{
+        state.hiddenColumns[tab] = new Set(obj[tab] || []);
+      });
+    } catch(e){}
+  }
+
+  /* =============== UI ELEMENTS =============== */
+  const fileInput = $('#fileInput');
+  const btnUpload = $('#btnUpload');
+  const btnExport = $('#btnExport');
+  const btnMap = $('#btnMap');
+  const mapper = $('#mapper');
+  const mapRows = $('#mapRows');
+  const btnCloseMap = $('#btnCloseMap');
+  const btnApplyMap = $('#btnApplyMap');
+
+  const btnColumns = $('#btnColumns');
+  const columnsPanel = $('#columnsPanel');
+  const colRows = $('#colRows');
+  const btnCloseCols = $('#btnCloseCols');
+  const btnApplyCols = $('#btnApplyCols');
+
+  const btnPaste = $('#btnPaste');
+  const pastePanel = $('#pastePanel');
+  const pasteArea = $('#pasteArea');
+  const pasteName = $('#pasteName');
+  const pasteType = $('#pasteType');
+  const btnClosePaste = $('#btnClosePaste');
+  const btnAddPaste = $('#btnAddPaste');
+
+  const btnSave = $('#btnSave');
+  const btnLoad = $('#btnLoad');
+  const btnRestore = $('#btnRestore');
+
+  const btnLive = $('#btnLive');
+  const btnRefresh = $('#btnRefresh');
+  const refreshSel = $('#refreshSel');
+
+  const filesCard = $('#filesCard');
+  const filesGrid = $('#filesGrid');
+
+  const searchInput = $('#searchInput');
+  const teamSelect = $('#teamSelect');
+  const posWrap = $('#posWrap');
+  const posSelect = $('#posSelect');
+  const minABWrap = $('#minABWrap');
+  const minAB = $('#minAB');
+  const minIPWrap = $('#minIPWrap');
+  const minIP = $('#minIP');
+
+  const theadRow = $('#theadRow');
+  const tbody = $('#tbody');
+  const status = $('#status');
+
+  const drop = $('#drop');
+  const page = $('#page');
+
+  /* =============== RENDERERS =============== */
+  function renderFiles(){
+    filesGrid.innerHTML='';
+    filesCard.classList.toggle('hidden', state.files.length===0);
+    state.files.forEach(f=>{
+      const el = document.createElement('div');
+      el.className='file';
+      el.innerHTML = `
+        <div style="min-width:0;">
+          <div style="font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${f.name}">${f.name}</div>
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <span class="pill">${f.rows.length} rows</span>
+            <span class="pill">Type: ${f.overrideType[0].toUpperCase()+f.overrideType.slice(1)}</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select data-act="override" data-id="${f.id}" class="select">
+            <option value="batting" ${f.overrideType==='batting'?'selected':''}>Batting</option>
+            <option value="pitching" ${f.overrideType==='pitching'?'selected':''}>Pitching</option>
+            <option value="fielding" ${f.overrideType==='fielding'?'selected':''}>Fielding</option>
+            <option value="unknown" ${f.overrideType==='unknown'?'selected':''}>Unknown</option>
+          </select>
+          <button data-act="remove" data-id="${f.id}" class="btn small">Remove</button>
+        </div>`;
+      filesGrid.appendChild(el);
+    });
+  }
+
+  function computeFilters(){
+    const merged = mergedByType();
+    const tset = new Set();
+    ['batting','pitching','fielding'].forEach(tp=>{
+      merged[tp].forEach(r=>{
+        const tv = r.Team ?? r.team ?? r.TEAM; if (tv) tset.add(String(tv));
+      });
+    });
+    teamSelect.innerHTML = '<option value="">All teams</option>' + Array.from(tset).sort().map(t=>`<option value="${t.replace(/"/g,'&quot;')}">${t}</option>`).join('');
+
+    const pset = new Set();
+    merged.fielding.concat(merged.batting).forEach(r=>{
+      const p = r.Pos ?? r.POS ?? r.Position; if (p) pset.add(String(p));
+    });
+    posSelect.innerHTML = '<option value="">All positions</option>' + Array.from(pset).sort().map(p=>`<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('');
+  }
+
+  function currentDataAndHeaders(){
+    const merged = mergedByType();
+    const data = merged[state.tab];
+    const base = CAN[state.tab]||[];
+    const seen = new Set(base); const extra = [];
+    for(const r of data){ Object.keys(r).forEach(k=>{ const ck=baseClean(k); if(!seen.has(ck)) extra.push(ck); }); }
+    const headersAll = base.concat(Array.from(new Set(extra.filter(h => h !== 'IBB' && h !== 'Player'))));
+    const headers = visibleHeaders(headersAll);
+    return {data, headers, headersAll};
+  }
+
+  function applyFilters(rows){
+    let out = rows;
+    const q = state.q.trim().toLowerCase();
+    if(q){
+      out = out.filter(r=>{
+        const p = cleanPlayerName(r.Player ?? r.player ?? '').toLowerCase();
+        const t = String(r.Team ?? r.team ?? '').toLowerCase();
+        return p.includes(q) || t.includes(q);
+      });
+    }
+    if(state.team){ out = out.filter(r => String(r.Team ?? r.team ?? '') === state.team); }
+    if(state.tab!=='pitching' && state.pos){ out = out.filter(r => String(r.Pos ?? r.POS ?? r.Position ?? '') === state.pos); }
+    if(state.tab==='batting' && state.minAB!==''){ out = out.filter(r => (toNumber(r.AB,'AB')||0) >= Number(state.minAB)); }
+    if(state.tab==='pitching' && state.minIP!==''){ out = out.filter(r => (toNumber(r.IP,'IP')||0) >= Number(state.minIP)); }
+    if(state.sortKey){
+      const k=state.sortKey, dir=state.sortDir==='asc'?1:-1;
+      out = out.slice().sort((a,b)=>{
+        const av = a[k];
+        const bv = b[k];
+        const an=toNumber(av, k), bn=toNumber(bv, k);
+        if(!isNaN(an) && !isNaN(bn)) return (an-bn)*dir;
+        return String(av??'').localeCompare(String(bv??''))*dir;
+      });
+    }
+    return out;
+  }
+
+  function renderControlsVisibility(){
+    if(state.tab==='pitching'){ posWrap.classList.add('hidden'); minIPWrap.classList.remove('hidden'); minABWrap.classList.add('hidden'); }
+    else { posWrap.classList.remove('hidden'); minIPWrap.classList.add('hidden'); minABWrap.classList.remove('hidden'); }
+  }
+
+  function renderTable(){
+    renderControlsVisibility();
+    const {data, headers, headersAll} = currentDataAndHeaders();
+    const filtered = applyFilters(data);
+    renderLeaders(filtered);
+
+    const scales = buildScales(filtered);
+
+    // Head
+    theadRow.innerHTML='';
+    headers.forEach(h=>{
+      const th=document.createElement('th'); th.className='sortable'; th.dataset.col=encodeURIComponent(h);
+      if (h==='Last') th.classList.add('sticky');
+      th.textContent = h + (state.sortKey===h ? (state.sortDir==='desc'?' ▼':' ▲') : '');
+      theadRow.appendChild(th);
+    });
+
+    // Body
+    tbody.innerHTML='';
+    if(!filtered.length){
+      const tr=document.createElement('tr'); const td=document.createElement('td');
+      td.colSpan=headers.length; td.style.textAlign='center'; td.style.color='var(--muted)'; td.style.padding='22px';
+      td.textContent='No rows. Upload CSVs, click “Load Live Stats”, or adjust filters.'; tr.appendChild(td); tbody.appendChild(tr);
+    } else {
+      for(const row of filtered){
+        const tr=document.createElement('tr');
+        headers.forEach(h=>{
+          const td=document.createElement('td');
+          if (h==='Last') td.classList.add('sticky');
+
+          let v = row[h];
+
+          // Percentile bar backgrounds for key metrics
+          const scale = scales[h];
+          if (scale && !isNaN(toNumber(v, h)) && scale.max>scale.min){
+            const raw = toNumber(v, h);
+            const invert = (h==='ERA' || h==='WHIP');
+            const pct = invert ? (scale.max - raw) / (scale.max - scale.min) : (raw - scale.min) / (scale.max - scale.min);
+            const p = Math.max(0, Math.min(1, pct)) * 100;
+            td.style.background = `linear-gradient(90deg, ${invert?'var(--bar-bad)':'var(--bar-good)'} ${p}%, transparent ${p}%)`;
+          }
+
+          td.textContent = formatValue(h, v);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
+    }
+    $('#status').textContent = `Showing ${filtered.length} of ${data.length} rows.`;
+  }
+
+  function setShimmer(on){
+    tbody.classList.toggle('shimmer', !!on);
+    if(on){
+      tbody.innerHTML = '';
+      for(let i=0;i<8;i++){
+        const tr = document.createElement('tr');
+        for(let j=0;j<8;j++){ tr.appendChild(document.createElement('td')); }
+        tbody.appendChild(tr);
+      }
+    }
+  }
+
+  function rerenderAll(){ renderFiles(); computeFilters(); renderTable(); cacheSession(); }
+
+  /* =============== LIVE LINKS (YOUR WORKER) =============== */
+  const liveUrls = {
+    batting: "https://bsv-proxy.gabibet2507.workers.dev/?mode=csv&arrayPath=data&fields=Player%3Aname%2CTeam%3Ateamcode%2CG%3Ag%2CAB%3Aab%2CR%3Ar%2CH%3Ah%2C2B%3Adouble%2C3B%3Atriple%2CHR%3Ahr%2CRBI%3Arbi%2CBB%3Abb%2CSO%3Aso%2CHBP%3Ahbp%2CSB%3Asb%2CCS%3Acs%2CAVG%3Aavg%2COBP%3Aobp%2CSLG%3Aslg%2COPS%3Aops%2CTB%3Atb%2CSF%3Asf%2CSH%3Ash%2CGDP%3Agdp&u=https%3A%2F%2Fwww.baseballsoftball.be%2Fapi%2Fv1%2Fstats%2Fevents%2F2025-baseball-d1%2Findex%3Fsection%3Dplayers%26stats-section%3Dbatting%26team%3D%26round%3D%26split%3D%26split%3D%26language%3Den",
+    pitching: "https://bsv-proxy.gabibet2507.workers.dev/?mode=csv&arrayPath=data&fields=Player%3Aname%2CTeam%3Ateamcode%2CG%3Apitch_appear%2CGS%3Apitch_gs%2CIP%3Apitch_ip%2CH%3Apitch_h%2CR%3Apitch_r%2CER%3Apitch_er%2CBB%3Apitch_bb%2CSO%3Apitch_so%2CHR%3Apitch_hr%2CW%3Apitch_win%2CL%3Apitch_loss%2CSV%3Apitch_save%2CERA%3Aera%2CWHIP%3Apitch_whip%2CHBP%3Apitch_hbp&u=https%3A%2F%2Fwww.baseballsoftball.be%2Fapi%2Fv1%2Fstats%2Fevents%2F2025-baseball-d1%2Findex%3Fsection%3Dplayers%26stats-section%3Dpitching%26team%3D%26round%3D%26split%3D%26split%3D%26language%3Den",
+    fielding: "https://bsv-proxy.gabibet2507.workers.dev/?mode=csv&arrayPath=data&fields=Player%3Aname%2CTeam%3Ateamcode%2CG%3Afield_g%2CGS%3Afield_c%2CPO%3Afield_po%2CA%3Afield_a%2CE%3Afield_e%2CDP%3Afield_dp%2CFld%25%3Afldp%2CPB%3Afield_pb&u=https%3A%2F%2Fwww.baseballsoftball.be%2Fapi%2Fv1%2Fstats%2Fevents%2F2025-baseball-d1%2Findex%3Fsection%3Dplayers%26stats-section%3Dfielding%26team%3D%26round%3D%26language%3Den"
+  };
+
+  /* =============== EVENTS =============== */
+  // Tabs
+  $('#tabs').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.tab'); if(!btn) return;
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active'); state.tab = btn.getAttribute('data-tab'); renderTable();
+  });
+
+  // Upload
+  btnUpload.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', (e)=>{
+    const files = Array.from(e.target.files||[]);
+    let pending = files.length; if(!pending) return;
+    files.forEach(f=>{
+      parseCsvBlob(f.name, f, (fileObj)=>{
+        state.files.push(fileObj);
+        if(--pending===0) rerenderAll();
+      }, (err)=>{ alert('Failed to read file: '+err); if(--pending===0) rerenderAll(); });
+    });
+    e.target.value='';
+    setLast();
+  });
+
+  async function loadLive(){
+    if (state.loading) return;
+    state.loading = true;
+    const oldStatus = status.textContent;
+    status.textContent = 'Loading live stats…';
+    setShimmer(true);
+    try {
+      state.files = [];
+      for (const [type, url] of Object.entries(liveUrls)) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`${type} fetch failed: ${res.status}`);
+        const text = await res.text();
+        const blob = new Blob([text], { type: 'text/csv' });
+        await new Promise((resolve, reject) => {
+          parseCsvBlob(type + ".csv", blob, (fileObj) => {
+            fileObj.type = type;
+            fileObj.overrideType = type;
+            state.files.push(fileObj);
+            resolve();
+          }, reject);
+        });
+      }
+      rerenderAll();
+      setLast();
+      status.textContent = 'Live stats loaded.';
+    } catch (e) {
+      console.error(e);
+      alert('Loading failed: ' + e.message);
+      status.textContent = oldStatus;
+    } finally {
+      setShimmer(false);
+      state.loading = false;
+    }
+  }
+
+  btnLive.addEventListener('click', loadLive);
+  btnRefresh.addEventListener('click', loadLive);
+
+  // Auto refresh
+  function setAutoRefresh(minutes){
+    if (state.autoTimer) { clearInterval(state.autoTimer); state.autoTimer = null; }
+    if (!minutes || Number(minutes)<=0) return;
+    state.autoTimer = setInterval(()=>{ loadLive(); }, Number(minutes)*60*1000);
+  }
+  refreshSel.addEventListener('change', e => setAutoRefresh(Number(e.target.value)));
+
+  // Drag & Drop
+  ;['dragenter','dragover'].forEach(ev => page.addEventListener(ev, (e)=>{ e.preventDefault(); $('#drop').classList.add('show'); }));
+  ;['dragleave','drop'].forEach(ev => page.addEventListener(ev, (e)=>{ e.preventDefault(); if(ev!=='drop') $('#drop').classList.remove('show'); }));
+  $('#drop').addEventListener('dragover', e=> e.preventDefault());
+  $('#drop').addEventListener('drop', (e)=>{
+    e.preventDefault(); $('#drop').classList.remove('show');
+    const files = Array.from(e.dataTransfer.files||[]).filter(f=>/\.csv$/i.test(f.name));
+    if(!files.length) return;
+    let pending = files.length;
+    files.forEach(f=>{
+      parseCsvBlob(f.name, f, (fileObj)=>{ state.files.push(fileObj); if(--pending===0) rerenderAll(); },
+                              (err)=>{ alert('Failed: '+err); if(--pending===0) rerenderAll(); });
+    });
+    setLast();
+  });
+
+  // Files list actions
+  filesGrid.addEventListener('click', (e)=>{
+    const btn = e.target.closest('button[data-act="remove"]'); if(!btn) return;
+    const id = btn.getAttribute('data-id'); state.files = state.files.filter(x=>x.id!==id); rerenderAll();
+  });
+  filesGrid.addEventListener('change', (e)=>{
+    const sel = e.target.closest('select[data-act="override"]'); if(!sel) return;
+    const id=sel.getAttribute('data-id'); const v=sel.value; const f=state.files.find(x=>x.id===id);
+    if(f){ f.overrideType=v; rerenderAll(); }
+  });
+
+  // Filters
+  $('#btnReset').addEventListener('click', ()=>{
+    state.q=''; state.team=''; state.pos=''; state.minAB=''; state.minIP=''; state.sortKey=''; state.sortDir='desc';
+    searchInput.value=''; teamSelect.value=''; posSelect.value=''; minAB.value=''; minIP.value='';
+    renderTable();
+  });
+  searchInput.addEventListener('input', e=>{ state.q=e.target.value; renderTable(); });
+  teamSelect.addEventListener('change', e=>{ state.team=e.target.value; renderTable(); });
+  posSelect.addEventListener('change', e=>{ state.pos=e.target.value; renderTable(); });
+  minAB.addEventListener('input', e=>{ state.minAB=e.target.value; renderTable(); });
+  minIP.addEventListener('input', e=>{ state.minIP=e.target.value; renderTable(); });
+
+  // Sort
+  theadRow.addEventListener('click', (e)=>{
+    const th = e.target.closest('th'); if(!th) return;
+    const h = decodeURIComponent(th.dataset.col||''); if(!h) return;
+    if(state.sortKey!==h){ state.sortKey=h; state.sortDir='desc'; } else { state.sortDir = (state.sortDir==='desc'?'asc':'desc'); }
+    renderTable();
+  });
+
+  // Export (only visible columns)
+  btnExport.addEventListener('click', ()=>{
+    const {data, headers} = currentDataAndHeaders();
+    const rows = applyFilters(data).map(r=>{
+      const o={};
+      headers.forEach(h=>{
+        const val = r[h] ?? '';
+        o[h] = formatValue(h, val);
+      });
+      return o;
+    });
+    const csv = [headers].concat(rows.map(r=>headers.map(h=>String(r[h]).replace(/"/g,'""'))))
+      .map(row=>row.map(cell=>cell.includes(',')||cell.includes('"')||cell.includes('\n')?`"${cell}"`:cell).join(','))
+      .join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download = state.tab + '-filtered-visible.csv'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  // Header Mapper
+  btnMap.addEventListener('click', ()=>{
+    const raws = new Set(); state.files.forEach(f => f.rawHeaders.forEach(h => raws.add(h)));
+    mapRows.innerHTML = ''; const opts = Array.from(new Set([].concat(...Object.values(CAN))));
+    Array.from(raws).sort().forEach(raw => {
+      const row = document.createElement('div'); row.className = 'map-row';
+      const rawDiv = document.createElement('div'); rawDiv.className='raw'; rawDiv.title=raw; rawDiv.textContent=raw;
+      const sel = document.createElement('select'); sel.className='select';
+      const current = canonicalizeHeader(raw);
+      sel.innerHTML = '<option value="">(auto)</option>' + opts.map(o=>`<option ${o===current?'selected':''} value="${o.replace(/"/g,'&quot;')}">${o}</option>`).join('');
+      sel.dataset.raw = raw; row.appendChild(rawDiv); row.appendChild(sel); mapRows.appendChild(row);
+    });
+    mapper.classList.remove('hidden');
+  });
+  btnCloseMap.addEventListener('click', ()=> mapper.classList.add('hidden'));
+  btnApplyMap.addEventListener('click', ()=>{
+    const selects = mapRows.querySelectorAll('select.select');
+    selects.forEach(sel=>{
+      const raw = sel.dataset.raw; const val = sel.value;
+      if (val) state.manualMap.set(raw, val); else state.manualMap.delete(raw);
+    });
+    state.files = state.files.map(f=>{
+      const newHeaders = f.rawHeaders.map(canonicalizeHeader);
+      const rows = f.rows.map(r=>{
+        const out = {}; newHeaders.forEach((h, idx)=>{ out[h] = r[f.headers[idx]]; }); return out;
+      });
+      const finalHeaders = addDerivedPA(newHeaders, rows);
+      return { ...f, headers: finalHeaders, rows, type: guessType(finalHeaders), overrideType: guessType(finalHeaders) };
+    });
+    mapper.classList.add('hidden'); rerenderAll();
+  });
+
+  // Column Chooser
+  btnColumns.addEventListener('click', ()=>{
+    const { headersAll } = currentDataAndHeaders();
+    const hidden = state.hiddenColumns[state.tab] || new Set();
+    colRows.innerHTML = '';
+    headersAll.forEach(h=>{
+      if (h==='Last') return; // Last always visible/sticky
+      const row = document.createElement('div'); row.className='col-row';
+      const label = document.createElement('div'); label.className='raw'; label.textContent = h;
+      const chkWrap = document.createElement('div'); chkWrap.style.textAlign='right';
+      const id = 'col_'+state.tab+'_'+encodeURIComponent(h);
+      chkWrap.innerHTML = `<label style="user-select:none;"><input id="${id}" type="checkbox" ${hidden.has(h)?'':'checked'}> Show</label>`;
+      row.appendChild(label); row.appendChild(chkWrap); colRows.appendChild(row);
+    });
+    columnsPanel.classList.remove('hidden');
+  });
+  btnCloseCols.addEventListener('click', ()=> columnsPanel.classList.add('hidden'));
+  btnApplyCols.addEventListener('click', ()=>{
+    const { headersAll } = currentDataAndHeaders();
+    const hidden = new Set();
+    headersAll.forEach(h=>{
+      if (h==='Last') return;
+      const id = 'col_'+state.tab+'_'+encodeURIComponent(h);
+      const el = document.getElementById(id);
+      if (el && !el.checked) hidden.add(h);
+    });
+    state.hiddenColumns[state.tab] = hidden;
+    saveHidden();
+    columnsPanel.classList.add('hidden');
+    renderTable();
+  });
+
+  // Paste CSV
+  btnPaste.addEventListener('click', ()=> { pastePanel.classList.remove('hidden'); pasteArea.focus(); });
+  btnClosePaste.addEventListener('click', ()=> pastePanel.classList.add('hidden'));
+  btnAddPaste.addEventListener('click', ()=>{
+    const name = pasteName.value.trim() || 'Pasted.csv';
+    const text = pasteArea.value; if(!text.trim()){ alert('Paste some CSV text first.'); return; }
+    const blob = new Blob([text], {type:'text/csv'}); parseCsvBlob(name, blob, (fileObj)=>{
+      if(pasteType.value!=='auto'){ fileObj.type = pasteType.value; fileObj.overrideType = pasteType.value; }
+      state.files.push(fileObj); rerenderAll(); pastePanel.classList.add('hidden'); pasteArea.value=''; pasteName.value='';
+      setLast();
+    }, (err)=>alert('Failed: '+err));
+  });
+
+  // Save / Load session
+  function download(filename, text){
+    const blob = new Blob([text], {type:'application/json'}); const url = URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+  }
+  function saveSession(downloadFile=true){
+    const payload = {
+      v:1,
+      hidden: {
+        batting: Array.from(state.hiddenColumns.batting),
+        pitching: Array.from(state.hiddenColumns.pitching),
+        fielding: Array.from(state.hiddenColumns.fielding)
+      },
+      files: state.files.map(({name,type,overrideType,headers,rows,rawHeaders})=>({name,type,overrideType,headers,rows,rawHeaders}))
+    };
+    const json = JSON.stringify(payload);
+    if(downloadFile) download('baseball-session.bsv.json', json);
+    try { localStorage.setItem('bsv_cache_v1', json); btnRestore.classList.remove('hidden'); } catch(e){}
+  }
+  function loadSessionObject(obj){
+    if(!obj || !Array.isArray(obj.files)) return;
+    state.files = obj.files.map(f => ({...f, id:genId()}));
+    if (obj.hidden){
+      ['batting','pitching','fielding'].forEach(tab=>{
+        state.hiddenColumns[tab] = new Set(obj.hidden[tab] || []);
+      });
+      saveHidden();
+    }
+    rerenderAll();
+  }
+  function cacheSession(){
+    const payload = {
+      v:1,
+      hidden: {
+        batting: Array.from(state.hiddenColumns.batting),
+        pitching: Array.from(state.hiddenColumns.pitching),
+        fielding: Array.from(state.hiddenColumns.fielding)
+      },
+      files: state.files.map(({name,type,overrideType,headers,rows,rawHeaders})=>({name,type,overrideType,headers,rows,rawHeaders}))
+    };
+    try { localStorage.setItem('bsv_cache_v1', JSON.stringify(payload)); btnRestore.classList.remove('hidden'); } catch(e){}
+  }
+  function tryShowRestore(){ try { if(localStorage.getItem('bsv_cache_v1')) btnRestore.classList.remove('hidden'); } catch(e){} }
+
+  btnSave.addEventListener('click', ()=> saveSession(true));
+  btnLoad.addEventListener('click', ()=>{
+    const inp = document.createElement('input'); inp.type='file'; inp.accept='.json,.bsv.json';
+    inp.onchange = ()=>{
+      const f = inp.files && inp.files[0]; if(!f) return;
+      const fr = new FileReader(); fr.onload = ()=>{ try { const obj = JSON.parse(fr.result); loadSessionObject(obj); } catch(e){ alert('Invalid session file.'); } };
+      fr.readAsText(f);
+    };
+    inp.click();
+  });
+  btnRestore.addEventListener('click', ()=>{
+    try { const json = localStorage.getItem('bsv_cache_v1'); if(!json) return; const obj = JSON.parse(json); loadSessionObject(obj); }
+    catch(e){ alert('Could not restore last session.'); }
+  });
+
+  // Init
+  loadHidden();
+  tryShowRestore();
+  renderFiles();
+})();
+</script>
+</body>
+</html>
